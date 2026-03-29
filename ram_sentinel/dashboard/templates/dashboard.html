@@ -1586,6 +1586,10 @@
 
         async function startEverything() {
             log('🚀 Initiating full system startup...');
+            document.getElementById('toggleOptimizer').checked = true;
+            document.getElementById('toggleVault').checked = true;
+            log('Starting Tab Optimizer...');
+            log('Mounting Ghost Drive...');
             await fetch('/api/control/optimizer/start', { method: 'POST' });
             await fetch('/api/control/vault/mount', { method: 'POST' });
             setTimeout(updateStats, 1500);
@@ -1594,6 +1598,10 @@
         async function stopEverything() {
             if (!confirm('🛑 EMERGENCY STOP: Stop all services and wipe Ghost Drive?')) return;
             log('🛑 Executing emergency shutdown...');
+            document.getElementById('toggleOptimizer').checked = false;
+            document.getElementById('toggleVault').checked = false;
+            log('Stopping Tab Optimizer...');
+            log('Unmounting Ghost Drive...');
             await fetch('/api/control/optimizer/stop', { method: 'POST' });
             await fetch('/api/control/vault/unmount', { method: 'POST' });
             setTimeout(updateStats, 1500);

@@ -65,23 +65,24 @@ def update_stats():
         stats_cache['chrome_memory'] = []
     
     # Tab stats (if purger is running)
-    if tab_purger and tab_purger.context:
+    if tab_purger and tab_purger.browser:
         try:
             tabs = []
-            for page in tab_purger.context.pages:
-                try:
-                    title = page.title if isinstance(page.title, str) else page.title()
-                    url = page.url if isinstance(page.url, str) else page.url()
-                    tabs.append({'title': title, 'url': url})
-                except:
-                    pass
-            stats_cache['tabs'] = tabs
+            for context in tab_purger.browser.contexts:
+                for page in context.pages:
+                    try:
+                        title = page.title if isinstance(page.title, str) else page.title()
+                        url = page.url if isinstance(page.url, str) else page.url()
+                        tabs.append({'title': title, 'url': url})
+                    except:
+                        pass
+            stats_cache['tabs'] = tabs  # type: ignore
         except:
-            stats_cache['tabs'] = []
+            stats_cache['tabs'] = []  # type: ignore
     else:
-        stats_cache['tabs'] = []
+        stats_cache['tabs'] = []  # type: ignore
     
-    stats_cache['last_update'] = time.time()
+    stats_cache['last_update'] = time.time()  # type: ignore
 
 # API Endpoints
 @app.route('/api/stats')
@@ -95,7 +96,7 @@ def get_stats():
         'purger_running': purger_running,
         'vault_mounted': vault_mounted,
         'connection_mode': connection_mode,
-        'tab_count': len(stats_cache['tabs'])
+        'tab_count': len(stats_cache['tabs'])  # type: ignore
     })
 
 @app.route('/api/control/connection/<mode>', methods=['POST'])
@@ -220,6 +221,26 @@ def get_tabs():
     update_stats()
     return jsonify(stats_cache['tabs'])
 
+def _run_purger_daemon():
+    global tab_purger, purger_running
+    try:
+        from playwright.sync_api import sync_playwright
+        tab_purger = TabPurger()
+        tab_purger.start_session(headless=True)
+        purger_running = True
+        
+        while purger_running:
+            try:
+                tab_purger.scan_and_purge(dry_run=False)
+                time.sleep(60)
+            except Exception as e:
+                print(f"Scan error: {e}")
+                if not purger_running:
+                    break
+    except Exception as e:
+        print(f"Purger error: {e}")
+        purger_running = False
+
 @app.route('/api/control/optimizer/<action>', methods=['POST'])
 def control_optimizer(action):
     """Control the tab optimizer."""
@@ -227,27 +248,7 @@ def control_optimizer(action):
     
     if action == 'start':
         if not purger_running:
-            def run_purger():
-                global tab_purger, purger_running
-                try:
-                    from playwright.sync_api import sync_playwright
-                    tab_purger = TabPurger()
-                    tab_purger.start_session(headless=True)
-                    purger_running = True
-                    
-                    while purger_running:
-                        try:
-                            tab_purger.scan_and_purge(dry_run=False)
-                            time.sleep(60)
-                        except Exception as e:
-                            print(f"Scan error: {e}")
-                            if not purger_running:
-                                break
-                except Exception as e:
-                    print(f"Purger error: {e}")
-                    purger_running = False
-            
-            thread = threading.Thread(target=run_purger, daemon=True)
+            thread = threading.Thread(target=_run_purger_daemon, daemon=True)
             thread.start()
             time.sleep(1)  # Give it a moment to start
             return jsonify({'status': 'started', 'message': 'Optimizer starting in background'})

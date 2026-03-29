@@ -40,17 +40,20 @@ ACTIVITY_TRACKER_SCRIPT = """
 })();
 """
 
+from typing import Any
+
 class TabPurger:
     def __init__(self):
-        self.playwright = None
-        self.browser = None
-        self.context = None
+        self.playwright: Any = None
+        self.browser: Any = None
+        self.context: Any = None
         self.storage = ReadLaterStorage()
         self._monitoring_start = time.time()
 
     def start_session(self, headless=False):
         """Starts a Playwright session, either connecting to existing or launching new."""
         self.playwright = sync_playwright().start()
+        assert self.playwright is not None
         try:
             # Try connecting to standard remote debugging port
             self.browser = self.playwright.chromium.connect_over_cdp("http://localhost:9222")
@@ -59,6 +62,7 @@ class TabPurger:
         except Exception:
             logger.warning("Could not connect to existing browser (Port 9222). Launching new instance.")
             self.browser = self.playwright.chromium.launch(headless=headless)
+            assert self.browser is not None
             self.context = self.browser.new_context()
 
     def stop_session(self):
@@ -125,7 +129,7 @@ class TabPurger:
 
     def scan_and_purge(self, dry_run=False):
         """Scans tabs using HPCE logic."""
-        if not self.context:
+        if not self.browser:
             return
 
         self.inject_tracker()
@@ -136,47 +140,48 @@ class TabPurger:
         
         now = time.time()
         
-        for page in self.context.pages:
-            try:
-                # Handle both CDP (property) and Playwright (method) access
-                title = page.title if isinstance(page.title, str) else page.title()
-                url = page.url if isinstance(page.url, str) else page.url()
+        for context in self.browser.contexts:
+            for page in context.pages:
+                try:
+                    # Handle both CDP (property) and Playwright (method) access
+                    title = page.title if isinstance(page.title, str) else page.title()
+                    url = page.url if isinstance(page.url, str) else page.url()
                 
-                # Retrieve HPCE Vector
-                hpce_raw = page.evaluate("window.__hpce || {}")
-                last_active_js = hpce_raw.get('lastActive', 0)
-                
-                # If script wasn't running (new tab), assume active now
-                if last_active_js == 0:
-                    last_active_js = now * 1000
-                
-                last_active_sec = last_active_js / 1000
-                idle_seconds = now - last_active_sec
-                
-                # Run HPCE Analysis
-                confidence, fingerprint = self.run_hpce_analysis(hpce_raw, idle_seconds)
-                
-                logger.debug(f"HPCE: {title[:20]}... | [{fingerprint}] | Conf: {confidence*100:.1f}%")
-
-                # Purge Threshold: < 5% Confidence
-                if confidence < 0.05:
-                    if not dry_run:
-                        # Capture data before closing
-                        purged_tabs.append({
-                            "title": title,
-                            "url": url,
-                            "timestamp": datetime.now().isoformat(),
-                            "fingerprint": fingerprint
-                        })
-                        page.close()
-                        logger.info(f"Purged [{fingerprint}]: {title}")
-                    else:
-                        logger.info(f"[Dry Run] HPCE would purge: {title}")
-                else:
-                    keep_tabs.append(title)
+                    # Retrieve HPCE Vector
+                    hpce_raw = page.evaluate("window.__hpce || {}")
+                    last_active_js = hpce_raw.get('lastActive', 0)
                     
-            except Exception as e:
-                logger.error(f"Error scanning page: {e}")
+                    # If script wasn't running (new tab), assume active now
+                    if last_active_js == 0:
+                        last_active_js = now * 1000
+                    
+                    last_active_sec = last_active_js / 1000
+                    idle_seconds = now - last_active_sec
+                    
+                    # Run HPCE Analysis
+                    confidence, fingerprint = self.run_hpce_analysis(hpce_raw, idle_seconds)
+                    
+                    logger.debug(f"HPCE: {title[:20]}... | [{fingerprint}] | Conf: {confidence*100:.1f}%")
+
+                    # Purge Threshold: < 5% Confidence
+                    if confidence < 0.05:
+                        if not dry_run:
+                            # Capture data before closing
+                            purged_tabs.append({
+                                "title": title,
+                                "url": url,
+                                "timestamp": datetime.now().isoformat(),
+                                "fingerprint": fingerprint
+                            })
+                            page.close()
+                            logger.info(f"Purged [{fingerprint}]: {title}")
+                        else:
+                            logger.info(f"[Dry Run] HPCE would purge: {title}")
+                    else:
+                        keep_tabs.append(title)
+                        
+                except Exception as e:
+                    logger.error(f"Error scanning page: {e}")
 
         if purged_tabs and not dry_run:
             self.storage.save_tabs(purged_tabs)

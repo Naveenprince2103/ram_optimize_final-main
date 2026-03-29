@@ -84,7 +84,7 @@ class MemoryAnalyzer:
                 name = (info.get("name") or "").lower()
                 cmdline = info.get("cmdline") or []
                 cmd = " ".join(cmdline) if isinstance(cmdline, (list, tuple)) else str(cmdline)
-                if "chrome" in name or "chrome" in cmd.lower():
+                if "chrome" in name or "chrome" in cmd.lower() or "msedge" in name or "brave" in name:
                     chrome_procs.append(proc)
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
