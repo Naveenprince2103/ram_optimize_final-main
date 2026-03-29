@@ -1,0 +1,8 @@
+playwright
+cryptography
+rich
+psutil
+pystray
+pillow
+flask
+flask-cors

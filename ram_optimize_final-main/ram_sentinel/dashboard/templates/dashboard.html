@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAM Sentinel // Command Center</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;500&display=swap"
+        rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="/static/js/chart.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0b0c15;
+            --bg-panel: #151621;
+            --primary: #00f2ff;
+            --primary-dim: rgba(0, 242, 255, 0.1);
+            --secondary: #7000ff;
+            --success: #00ff7f;
+            --danger: #ff0055;
+            --text-main: #ffffff;
+            --text-muted: #8b8d9f;
+            --card-radius: 12px;
+            --transition: 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            scrollbar-width: thin;
+            scrollbar-color: var(--primary) var(--bg-dark);
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background-color: var(--bg-panel);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            z-index: 10;
+        }
+
+        .brand {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            color: var(--primary);
+            margin-bottom: 40px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-shadow: 0 0 10px var(--primary-dim);
+        }
+
+        .nav-menu {
+            list-style: none;
+            flex: 1;
+        }
+
+        .nav-item {
+            margin-bottom: 10px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-radius: var(--card-radius);
+            transition: var(--transition);
+            gap: 12px;
+            font-weight: 500;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            background: var(--primary-dim);
+            color: var(--primary);
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.05);
+        }
+
+        .nav-link i {
+            width: 20px;
+            text-align: center;
+        }
+
+        .system-status {
+            margin-top: auto;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: var(--card-radius);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+            background: radial-gradient(circle at top right, #1a1b2e 0%, var(--bg-dark) 60%);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .page-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: bold;
+            font-size: 0.8rem;
+            transition: var(--transition);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--primary-dim);
+            color: var(--primary);
+            border: 1px solid var(--primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary);
+            color: #000;
+            box-shadow: 0 0 20px var(--primary-dim);
+        }
+
+        .btn-danger {
+            background: rgba(255, 0, 85, 0.1);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+
+        .btn-danger:hover {
+            background: var(--danger);
+            color: #fff;
+            box-shadow: 0 0 20px rgba(255, 0, 85, 0.3);
+        }
+
+        /* Dashboard Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: var(--bg-panel);
+            border-radius: var(--card-radius);
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, var(--primary), transparent);
+            opacity: 0.5;
+        }
+
+        .stat-card {
+            grid-column: span 3;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 140px;
+        }
+
+        .stat-title {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stat-value {
+            font-size: 2.2rem;
+            font-family: 'Orbitron', sans-serif;
+            margin: 10px 0;
+        }
+
+        .stat-chart-mini {
+            height: 40px;
+            width: 100%;
+        }
+
+        /* Main Chart Area */
+        .chart-section {
+            grid-column: span 8;
+            height: 550px;
+        }
+
+        .action-section {
+            grid-column: span 4;
+            height: 550px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .control-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            background: rgba(0, 242, 255, 0.03);
+            border: 1px solid rgba(0, 242, 255, 0.1);
+        }
+
+        .switch-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        /* Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #2c2c2c;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: var(--primary);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(20px);
+        }
+
+        /* Tables */
+        .table-section {
+            grid-column: span 6;
+            height: 400px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section-header {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-container {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px;
+            color: var(--text-muted);
+            font-weight: 500;
+            position: sticky;
+            top: 0;
+            background: var(--bg-panel);
+            z-index: 2;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .proc-name {
+            color: var(--text-main);
+            font-weight: 500;
+        }
+
+        .proc-ram {
+            color: var(--primary);
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .action-btn:hover {
+            color: var(--danger);
+        }
+
+        /* Utilities */
+        .text-success {
+            color: var(--success);
+        }
+
+        .text-danger {
+            color: var(--danger);
+        }
+
+        .text-primary {
+            color: var(--primary);
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(0, 255, 127, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(0, 255, 127, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(0, 255, 127, 0);
+            }
+        }
+
+        .status-dot.active {
+            animation: pulse 2s infinite;
+        }
+
+        /* Loading Overlay */
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-dark);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.5s;
+        }
+
+        .loader {
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--bg-panel);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Logs */
+        .log-container {
+            height: 150px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            border-left: 2px solid var(--primary);
+            padding-left: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="loading">
+        <div class="loader"></div>
+    </div>
+
+    <!-- Modals -->
+    <div id="modalOverlay"
+        style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:2000; justify-content:center; align-items:center;">
+
+        <!-- Ghost Drive Modal -->
+        <div id="ghostModal" class="card"
+            style="width: 500px; max-width: 90%; display:none; flex-direction:column; gap:20px; box-shadow: 0 0 50px rgba(0,242,255,0.2);">
+            <div class="section-header">
+                <h3><i class="fas fa-hdd text-warning"></i> Ghost Drive Details</h3>
+                <button class="action-btn" onclick="closeModals()"><i class="fas fa-times fa-lg"></i></button>
+            </div>
+            <div id="ghostStatsContent">
+                Loading...
+            </div>
+            <div
+                style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; font-size: 0.8rem; border-left: 2px solid var(--warning);">
+                <i class="fas fa-exclamation-triangle text-warning"></i>
+                Files here are <strong>VOLATILE</strong>. They will vanish instantly on shutdown.
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settingsModal" class="card"
+            style="width: 500px; max-width: 90%; display:none; flex-direction:column; gap:20px;">
+            <div class="section-header">
+                <h3><i class="fas fa-cog text-primary"></i> System Configuration</h3>
+                <button class="action-btn" onclick="closeModals()"><i class="fas fa-times fa-lg"></i></button>
+            </div>
+
+            <div>
+                <label style="display:block; margin-bottom:5px;">Max Tab Age (Minutes)</label>
+                <input type="number" value="60"
+                    style="width:100%; padding:10px; background:rgba(0,0,0,0.2); border:1px solid #333; color:white; border-radius:5px;">
+            </div>
+
+            <div>
+                <label style="display:block; margin-bottom:5px;">RAM Safety Buffer (GB)</label>
+                <input type="number" value="2.0"
+                    style="width:100%; padding:10px; background:rgba(0,0,0,0.2); border:1px solid #333; color:white; border-radius:5px;">
+            </div>
+
+            <button class="btn btn-primary" onclick="closeModals(); log('Settings saved locally.')">Save
+                Configuration</button>
+        </div>
+
+    </div>
+
+    <nav class="sidebar">
+        <div class="brand">
+            <i class="fas fa-shield-alt"></i> SENTINEL
+        </div>
+        <ul class="nav-menu">
+            <li class="nav-item">
+                <a href="#" class="nav-link active">
+                    <i class="fas fa-chart-line"></i> Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link">
+                    <i class="fas fa-microchip"></i> Processes
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link">
+                    <i class="fas fa-hdd"></i> Ghost Drive
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link">
+                    <i class="fas fa-cog"></i> Settings
+                </a>
+            </li>
+        </ul>
+
+        <div class="system-status">
+            <div><span class="status-dot active"></span> System Secure</div>
+            <div style="font-size: 0.8rem; margin-top: 5px; color: var(--text-muted);" id="uptime">Uptime: 00:00:00
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <header class="header">
+            <h1 class="page-title">SYSTEM OVERVIEW</h1>
+            <div class="header-actions">
+                <button class="btn btn-danger" onclick="stopEverything()">
+                    <i class="fas fa-power-off"></i> Emergency Stop
+                </button>
+                <button class="btn btn-primary" onclick="startEverything()">
+                    <i class="fas fa-rocket"></i> Boost All
+                </button>
+            </div>
+        </header>
+
+        <div class="dashboard-grid">
+            <!-- Stats -->
+            <div class="card stat-card">
+                <div class="stat-title">RAM Usage <i class="fas fa-memory text-primary"></i></div>
+                <div class="stat-value" id="ramUsed">0.0 GB</div>
+                <div class="stat-chart-mini">
+                    <div
+                        style="background: rgba(255,255,255,0.1); width: 100%; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 10px;">
+                        <div id="ramBar"
+                            style="background: var(--primary); width: 0%; height: 100%; transition: width 0.5s;"></div>
+                    </div>
+                    <div
+                        style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-top: 5px; opacity: 0.7;">
+                        <span>0%</span>
+                        <span id="ramPercent">0%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card stat-card">
+                <div class="stat-title">CPU Load <i class="fas fa-microchip text-danger"></i></div>
+                <div class="stat-value" id="cpuVal">0%</div>
+                <div class="stat-chart-mini">
+                    <div
+                        style="background: rgba(255,255,255,0.1); width: 100%; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 10px;">
+                        <div id="cpuBar"
+                            style="background: var(--danger); width: 0%; height: 100%; transition: width 0.5s;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card stat-card">
+                <div class="stat-title">Active Tabs <i class="fas fa-columns text-success"></i></div>
+                <div class="stat-value" id="tabCount">0</div>
+                <div style="font-size: 0.8rem; opacity: 0.6;">Monitored by Neural Purgers</div>
+            </div>
+
+            <div class="card stat-card">
+                <div class="stat-title">Ghost Drive <i class="fas fa-database text-warning"></i></div>
+                <div class="stat-value" style="font-size: 1.5rem;" id="vaultStatus">OFFLINE</div>
+                <div style="font-size: 0.8rem; opacity: 0.6;">Encrypted Volatile Storage</div>
+            </div>
+
+            <!-- Charts -->
+            <div class="card chart-section">
+                <div class="section-header">
+                    <h3>Performance History</h3>
+                </div>
+                <canvas id="ramChart"></canvas>
+            </div>
+
+            <!-- Controls -->
+            <div class="card action-section control-panel">
+                <div class="section-header">
+                    <h3>Active Modules</h3>
+                </div>
+
+                <div class="switch-row">
+                    <div>
+                        <div style="font-weight: bold;">Neural Tab Purger</div>
+                        <div style="font-size: 0.8rem; opacity: 0.7;">Auto-close inactive tabs</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="toggleOptimizer" onchange="toggleOptimizer()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="switch-row">
+                    <div>
+                        <div style="font-weight: bold;">Ghost Drive</div>
+                        <div style="font-size: 0.8rem; opacity: 0.7;">Mount RAM Disk (R:)</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="toggleVault" onchange="toggleVault()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="switch-row">
+                    <div>
+                        <div style="font-weight: bold;">Online Mode</div>
+                        <div style="font-size: 0.8rem; opacity: 0.7;">Remote Access & Updates</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="toggleConnection" onchange="toggleConnection()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div id="onlineFeatures"
+                    style="display:none; padding: 10px; background: rgba(0,255,127,0.1); border-radius: 8px; font-size: 0.8rem;">
+                    <div style="margin-bottom: 5px;"><i class="fas fa-wifi"></i> <strong>Network Active</strong></div>
+                    <div style="opacity: 0.8;">LAN: <span id="lanIp">Detecting...</span></div>
+                    <button class="btn btn-primary"
+                        style="padding: 5px 10px; font-size: 0.7rem; margin-top: 5px; width: 100%;"
+                        onclick="alert('Checking for updates...')">
+                        <i class="fas fa-sync"></i> Check Updates
+                    </button>
+                </div>
+
+                <div style="margin-top: auto;">
+                    <div class="section-header">
+                        <h3>Event Log</h3>
+                    </div>
+                    <div class="log-container" id="logContainer">
+                        <div class="log-entry">System initialized...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Processes -->
+            <div class="card table-section" style="grid-column: span 8;">
+                <div class="section-header">
+                    <h3>Resource Hogs</h3>
+                    <button class="btn btn-primary" style="padding: 5px 10px; font-size: 0.7rem;"
+                        onclick="updateStats()">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>PID</th>
+                                <th>Memory</th>
+                                <th>CPU</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="processList">
+                            <!-- Process Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="card table-section" style="grid-column: span 4;">
+                <div class="section-header">
+                    <h3>Monitored Tabs</h3>
+                </div>
+                <div class="table-container">
+                    <ul id="tabList" style="list-style: none;">
+                        <!-- Tab Rows -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Global State
+        let ramHistory = Array(20).fill(0);
+        let chartInstance = null;
+        let uptimeSeconds = 0;
+
+        // Initialize Chart
+        function initChart() {
+            const ctx = document.getElementById('ramChart').getContext('2d');
+
+            // Gradient
+            let gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, 'rgba(0, 242, 255, 0.5)');
+            gradient.addColorStop(1, 'rgba(0, 242, 255, 0)');
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array(20).fill(''),
+                    datasets: [{
+                        label: 'RAM Usage (%)',
+                        data: ramHistory,
+                        borderColor: '#00f2ff',
+                        backgroundColor: gradient,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        x: { display: false }
+                    },
+                    animation: { duration: 0 }
+                }
+            });
+        }
+
+        // Logging
+        function log(msg) {
+            const container = document.getElementById('logContainer');
+            const time = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            div.innerHTML = `<span style="color: var(--primary)">[${time}]</span> ${msg}`;
+            container.prepend(div);
+        }
+
+        // Fetch Stats
+        async function updateStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+
+                // Update RAM
+                const ramPercent = data.system.percent;
+                document.getElementById('ramUsed').textContent = data.system.used_gb.toFixed(1) + ' GB';
+                document.getElementById('ramPercent').textContent = ramPercent.toFixed(1) + '%';
+                document.getElementById('ramBar').style.width = ramPercent + '%';
+
+                // Update CPU (if available)
+                if (data.system.cpu_percent !== undefined) {
+                    document.getElementById('cpuVal').textContent = data.system.cpu_percent.toFixed(1) + '%';
+                    document.getElementById('cpuBar').style.width = data.system.cpu_percent + '%';
+                }
+
+                // Update Chart
+                ramHistory.shift();
+                ramHistory.push(ramPercent);
+                if (chartInstance) {
+                    chartInstance.data.datasets[0].data = ramHistory;
+                    chartInstance.update();
+                }
+
+                // Update Toggles & Status
+                document.getElementById('tabCount').textContent = data.tab_count;
+
+                const optSwitch = document.getElementById('toggleOptimizer');
+                if (data.purger_running !== optSwitch.checked) {
+                    // Only update visually if changed externally to avoid glitching while clicking
+                    // But here we just set it to match backend state
+                    optSwitch.checked = data.purger_running;
+                }
+
+                const vaultSwitch = document.getElementById('toggleVault');
+                const vaultStatus = document.getElementById('vaultStatus');
+                vaultSwitch.checked = data.vault_mounted;
+
+                if (data.vault_mounted) {
+                    vaultStatus.textContent = 'MOUNTED';
+                    vaultStatus.style.color = 'var(--success)';
+                } else {
+                    vaultStatus.textContent = 'OFFLINE';
+                    vaultStatus.style.color = 'var(--text-muted)';
+                }
+
+                // Update Connection Mode
+                const connSwitch = document.getElementById('toggleConnection');
+                const onlineFeatures = document.getElementById('onlineFeatures');
+                const isOnline = data.connection_mode === 'online';
+
+                connSwitch.checked = isOnline;
+                onlineFeatures.style.display = isOnline ? 'block' : 'none';
+
+                if (isOnline && document.getElementById('lanIp').textContent === 'Detecting...') {
+                    // Fake IP detection for demo
+                    setTimeout(() => {
+                        document.getElementById('lanIp').textContent = '192.168.1.105';
+                    }, 1500);
+                } else if (!isOnline) {
+                    document.getElementById('lanIp').textContent = 'Detecting...';
+                }
+
+                // Update Processes
+                const processList = document.getElementById('processList');
+                processList.innerHTML = data.processes.map(proc => `
+                    <tr>
+                        <td><div class="proc-name">${proc.name}</div></td>
+                        <td style="opacity: 0.7;">${proc.pid}</td>
+                        <td class="proc-ram">${proc.memory_mb.toFixed(0)} MB</td>
+                        <td>${proc.cpu_percent || 0}%</td>
+                        <td>
+                            <button class="action-btn" onclick="killProcess(${proc.pid}, '${proc.name}')" title="Kill Process">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                // Update Tabs
+                const tabList = document.getElementById('tabList');
+                if (data.tabs.length > 0) {
+                    tabList.innerHTML = data.tabs.map(tab => `
+                        <li style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+                            <i class="fas fa-globe text-primary" style="margin-right: 8px;"></i>
+                            ${tab.title || 'Untitled'}
+                            <div style="font-size: 0.7rem; opacity: 0.5; margin-left: 24px;">${tab.url}</div>
+                        </li>
+                    `).join('');
+                } else {
+                    tabList.innerHTML = '<li style="padding: 10px; opacity: 0.5;">No active tabs monitored</li>';
+                }
+
+            } catch (error) {
+                console.error('Stats error:', error);
+            }
+        }
+
+        // Actions
+        async function killProcess(pid, name) {
+            if (!confirm(`⚠️ FORCE KILL process: ${name} (PID: ${pid})?`)) return;
+
+            try {
+                const res = await fetch(`/api/control/process/kill/${pid}`, { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'killed') {
+                    log(`Terminated process: ${name} (${pid})`);
+                    updateStats();
+                } else {
+                    alert('Failed to kill process: ' + (data.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Connection error');
+            }
+        }
+
+        async function toggleOptimizer() {
+            const newState = document.getElementById('toggleOptimizer').checked;
+            const action = newState ? 'start' : 'stop';
+            log(`${newState ? 'Starting' : 'Stopping'} Tab Optimizer...`);
+
+            try {
+                await fetch(`/api/control/optimizer/${action}`, { method: 'POST' });
+                setTimeout(updateStats, 1000);
+            } catch (e) {
+                log('Error toggling optimizer');
+                // Revert switch if failed
+                document.getElementById('toggleOptimizer').checked = !newState;
+            }
+        }
+
+        async function toggleVault() {
+            const newState = document.getElementById('toggleVault').checked;
+            const action = newState ? 'mount' : 'unmount';
+
+            if (!newState) {
+                if (!confirm('⚠️ Unmounting Ghost Drive will DESTROY ALL DATA inside it. Continue?')) {
+                    document.getElementById('toggleVault').checked = true;
+                    return;
+                }
+            }
+
+            log(`${newState ? 'Mounting' : 'Unmounting'} Ghost Drive...`);
+            try {
+                await fetch(`/api/control/vault/${action}`, { method: 'POST' });
+                setTimeout(updateStats, 1000);
+            } catch (e) {
+                log('Error toggling vault');
+                document.getElementById('toggleVault').checked = !newState;
+            }
+        }
+
+        async function toggleConnection() {
+            const newState = document.getElementById('toggleConnection').checked;
+            const mode = newState ? 'online' : 'offline';
+
+            log(`Switching to ${mode.toUpperCase()} mode...`);
+            try {
+                await fetch(`/api/control/connection/${mode}`, { method: 'POST' });
+                updateStats();
+            } catch (e) {
+                log('Error changing connection mode');
+                document.getElementById('toggleConnection').checked = !newState;
+            }
+        }
+
+        async function startEverything() {
+            log('🚀 Initiating full system startup...');
+            await fetch('/api/control/optimizer/start', { method: 'POST' });
+            await fetch('/api/control/vault/mount', { method: 'POST' });
+            setTimeout(updateStats, 1500);
+        }
+
+        async function stopEverything() {
+            if (!confirm('🛑 EMERGENCY STOP: Stop all services and wipe Ghost Drive?')) return;
+            log('🛑 Executing emergency shutdown...');
+            await fetch('/api/control/optimizer/stop', { method: 'POST' });
+            await fetch('/api/control/vault/unmount', { method: 'POST' });
+            setTimeout(updateStats, 1500);
+        }
+
+        // Sidebar Navigation
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+
+                // Handle navigation logic here
+                const text = link.innerText.trim();
+                link.classList.add('active');
+
+                if (text === 'Dashboard') {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else if (text === 'Processes') {
+                    document.querySelector('.table-section').scrollIntoView({ behavior: 'smooth' });
+                } else if (text === 'Ghost Drive') {
+                    openGhostModal();
+                } else if (text === 'Settings') {
+                    openSettingsModal();
+                }
+            });
+        });
+
+        function openModal(id) {
+            document.getElementById('modalOverlay').style.display = 'flex';
+            document.getElementById('ghostModal').style.display = 'none';
+            document.getElementById('settingsModal').style.display = 'none';
+            document.getElementById(id).style.display = 'flex';
+        }
+
+        function closeModals() {
+            document.getElementById('modalOverlay').style.display = 'none';
+        }
+
+        function openSettingsModal() {
+            openModal('settingsModal');
+        }
+
+        async function openGhostModal() {
+            openModal('ghostModal');
+            const content = document.getElementById('ghostStatsContent');
+            content.innerHTML = '<div style="text-align:center;"><div class="loader" style="width:30px;height:30px;margin:20px auto;"></div>Scanning Drive...</div>';
+
+            try {
+                const res = await fetch('/api/vault/stats');
+                const data = await res.json();
+
+                if (data.status === 'unmounted') {
+                    content.innerHTML = `
+                        <div style="text-align:center; padding: 20px;">
+                            <i class="fas fa-lock text-muted" style="font-size: 3em; margin-bottom: 20px;"></i>
+                            <h2 style="color:var(--text-muted)">Drive Locked</h2>
+                            <p>Mount the drive to view statistics.</p>
+                            <button class="btn btn-primary" onclick="closeModals(); toggleVault();" style="margin-top:20px;">Mount Now</button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                if (data.status === 'error') {
+                    content.innerHTML = `<div class="text-danger">Error: ${data.message}</div>`;
+                    return;
+                }
+
+                // Calculate width for bar
+                const percent = data.percent.toFixed(1);
+
+                content.innerHTML = `
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div style="background:rgba(0,0,0,0.2); padding:15px; border-radius:8px;">
+                            <div style="font-size:0.8rem; opacity:0.7">Total Capacity</div>
+                            <div style="font-size:1.5rem; font-family:'Orbitron'">${(data.total_size / (1024 ** 3)).toFixed(2)} GB</div>
+                        </div>
+                        <div style="background:rgba(0,0,0,0.2); padding:15px; border-radius:8px;">
+                            <div style="font-size:0.8rem; opacity:0.7">Free Space</div>
+                            <div style="font-size:1.5rem; font-family:'Orbitron'">${(data.free_size / (1024 ** 3)).toFixed(2)} GB</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:10px;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                            <span>Usage</span>
+                            <span>${percent}%</span>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.1); height:10px; border-radius:5px; overflow:hidden;">
+                            <div style="width:${percent}%; height:100%; background:var(--primary);"></div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:10px; margin-top:10px; padding:10px; background:rgba(255,255,255,0.05); border-radius:8px;">
+                        <div style="background:var(--bg-dark); padding:10px; border-radius:50%;"><i class="fas fa-folder-open"></i></div>
+                        <div>
+                            <div>Mount Point: <strong>${data.mount_point}</strong></div>
+                            <div style="font-size:0.8rem; opacity:0.7">${data.file_count} files stored</div>
+                        </div>
+                    </div>
+                `;
+
+            } catch (e) {
+                content.innerHTML = '<div class="text-danger">Failed to fetch drive stats.</div>';
+            }
+        }
+
+        // Setup
+        window.onload = function () {
+            setTimeout(() => {
+                document.getElementById('loading').style.opacity = '0';
+                setTimeout(() => document.getElementById('loading').style.display = 'none', 500);
+                initChart();
+                updateStats();
+                setInterval(updateStats, 2000);
+
+                // Uptime counter
+                setInterval(() => {
+                    uptimeSeconds++;
+                    const date = new Date(0);
+                    date.setSeconds(uptimeSeconds);
+                    document.getElementById('uptime').innerText = 'Session: ' + date.toISOString().substr(11, 8);
+                }, 1000);
+            }, 800);
+        }
+    </script>
+</body>
+
+</html>

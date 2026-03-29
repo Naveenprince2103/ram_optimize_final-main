@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAM Sentinel // Command Center</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;500&display=swap"
+        rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0b0c15;
+            --bg-panel: #151621;
+            --primary: #00f2ff;
+            --primary-dim: rgba(0, 242, 255, 0.1);
+            --secondary: #7000ff;
+            --success: #00ff7f;
+            --text-main: #ffffff;
+            --text-muted: #8b8d9f;
+            --card-radius: 12px;
+            --transition: 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Ambient Background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background:
+                radial-gradient(circle at 10% 20%, rgba(112, 0, 255, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(0, 242, 255, 0.1) 0%, transparent 40%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            padding: 100px 20px;
+            position: relative;
+        }
+
+        .logo {
+            font-size: 5em;
+            margin-bottom: 20px;
+            text-shadow: 0 0 30px var(--primary-dim);
+            animation: float 6s ease-in-out infinite;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-20px);
+            }
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 4em;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(0, 242, 255, 0.3);
+            letter-spacing: 2px;
+        }
+
+        .tagline {
+            font-size: 1.5em;
+            color: var(--text-muted);
+            max-width: 800px;
+            margin: 0 auto 40px;
+        }
+
+        /* Buttons */
+        .cta-group {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            color: #000;
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0 40px rgba(0, 242, 255, 0.4);
+        }
+
+        .btn-glass {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-glass:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-5px);
+        }
+
+        /* Features Grid */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin: 100px 0;
+        }
+
+        .feature-card {
+            background: var(--bg-panel);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: var(--card-radius);
+            padding: 40px;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, var(--primary-dim), transparent);
+            opacity: 0;
+            transition: var(--transition);
+            z-index: -1;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-10px);
+            border-color: var(--primary);
+        }
+
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-icon {
+            font-size: 3em;
+            margin-bottom: 20px;
+            color: var(--primary);
+            text-shadow: 0 0 15px var(--primary-dim);
+        }
+
+        .feature-card h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            color: var(--text-main);
+        }
+
+        .feature-card p {
+            color: var(--text-muted);
+            font-size: 1.1em;
+        }
+
+        /* Privacy Highlight */
+        .privacy-section {
+            background: linear-gradient(135deg, rgba(112, 0, 255, 0.1), rgba(0, 0, 0, 0.4));
+            border: 1px solid var(--secondary);
+            border-radius: var(--card-radius);
+            padding: 60px;
+            margin: 80px 0;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .privacy-section h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            color: var(--primary);
+        }
+
+        .privacy-badge {
+            display: inline-block;
+            background: var(--secondary);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            font-family: 'Orbitron', sans-serif;
+            box-shadow: 0 0 15px var(--secondary);
+        }
+
+        /* Code Block */
+        .code-block {
+            background: #000;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            color: var(--success);
+            text-align: left;
+            margin: 10px auto;
+            max-width: 600px;
+            position: relative;
+        }
+
+        .code-block::before {
+            content: 'TERMINAL';
+            position: absolute;
+            top: -10px;
+            left: 20px;
+            background: var(--bg-dark);
+            padding: 0 10px;
+            font-size: 0.8em;
+            color: var(--text-muted);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 60px 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            margin-top: 100px;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">🛡️</div>
+            <h1>RAM SENTINEL</h1>
+            <p class="tagline">Next-Gen Intelligent RAM Optimization & Secure Volatile Storage. <br>Built for the
+                privacy-conscious future.</p>
+
+            <div class="cta-group">
+                <a href="#" class="btn btn-primary"><i class="fas fa-download"></i> Download v1.0</a>
+                <a href="https://github.com/yourusername/ram-sentinel" class="btn btn-glass"><i
+                        class="fab fa-github"></i> Source Code</a>
+            </div>
+        </header>
+
+        <!-- Privacy Focus Section -->
+        <div class="privacy-section">
+            <span class="privacy-badge">100% OFFLINE</span>
+            <h2>Zero Telemetry. Total Privacy.</h2>
+            <p style="max-width: 700px; margin: 0 auto; color: var(--text-muted); font-size: 1.2em;">
+                In an age of constant surveillance, RAM Sentinel stands apart. It runs completely offline with zero
+                "cloud sync" or analytics.
+                What happens on your machine, stays on your machine.
+            </p>
+            <div style="margin-top: 30px; display: flex; justify-content: center; gap: 40px; flex-wrap: wrap;">
+                <div><i class="fas fa-wifi-slash text-primary"
+                        style="font-size: 2em; margin-bottom: 10px;"></i><br>Works Air-Gapped</div>
+                <div><i class="fas fa-user-secret text-primary" style="font-size: 2em; margin-bottom: 10px;"></i><br>No
+                    Sign-up</div>
+                <div><i class="fas fa-hdd text-primary" style="font-size: 2em; margin-bottom: 10px;"></i><br>Volatile
+                    Storage</div>
+            </div>
+        </div>
+
+        <div class="features">
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-brain"></i></div>
+                <h3>Neural Tab-Purger</h3>
+                <p>AI-driven monitoring of browser tabs. Automatically freezes resources from inactive tabs while
+                    keeping your session intact.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-ghost"></i></div>
+                <h3>Ghost Drive</h3>
+                <p>Create military-grade encrypted RAM drives. Data exists only while powered on and vanishes instantly
+                    upon shutdown.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
+                <h3>Process Command</h3>
+                <p>Real-time analytics of system performance with ability to execute instant termination of
+                    resource-hogging processes.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-tachometer-alt"></i></div>
+                <h3>Cyberpunk Dashboard</h3>
+                <p>A stunning, responsive web interface to control every aspect of your system's memory and security.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-biohazard"></i></div>
+                <h3>Panic Protocol</h3>
+                <p>One-click emergency wipe. Instantly closes all sensitive tabs, unmounts Ghost Drive, and shreds
+                    encryption keys.</p>
+            </div>
+        </div>
+
+        <div class="quick-start" style="text-align: center;">
+            <h2 style="font-family: 'Orbitron', sans-serif; margin-bottom: 30px;">Initialize System</h2>
+            <div class="code-block">
+                > setup.bat<br>
+                > start_dashboard.bat
+            </div>
+            <p style="margin-top: 20px; opacity: 0.7;">Compatible with Windows 10/11, Linux, macOS</p>
+        </div>
+
+        <footer>
+            <p>&copy; 2026 RAM Sentinel. Open Source & Free Forever.</p>
+            <p style="font-size: 0.9em; margin-top: 10px;">Constructed with Python & ❤️</p>
+        </footer>
+    </div>
+</body>
+
+</html>
