@@ -22,6 +22,8 @@ from ram_sentinel.optimizer.tab_purger import TabPurger
 from ram_sentinel.optimizer.tab_restoration import TabRestorationEngine
 from ram_sentinel.vault.manager import get_vault
 from ram_sentinel.core.memory_analyzer import MemoryAnalyzer
+from ram_sentinel.core.leak_detector import leak_detector_service
+from ram_sentinel.core.secure_sandbox import sandbox_service
 from dashboard.utils import api_success, api_error, log_error
 import psutil
 
@@ -669,6 +671,42 @@ def get_vault_stats():
             error_code="VAULT_STATS_FAILED",
             status_code=500
         )
+
+# --- Sandbox APIs ---
+@app.route('/api/sandbox/status')
+def sandbox_status():
+    return api_success(data=sandbox_service.get_status())
+
+@app.route('/api/sandbox/toggle', methods=['POST'])
+def sandbox_toggle():
+    new_state = sandbox_service.toggle()
+    return api_success(data={'enabled': new_state})
+
+@app.route('/api/sandbox/quarantine/<int:pid>', methods=['POST'])
+def sandbox_quarantine(pid):
+    success, msg = sandbox_service.quarantine_process(pid)
+    if success:
+        return api_success(data={'status': 'quarantined'}, message=msg)
+    else:
+        return api_error(message=msg, status_code=400)
+
+@app.route('/api/sandbox/release/<int:pid>', methods=['POST'])
+def sandbox_release(pid):
+    success, msg = sandbox_service.release_process(pid)
+    if success:
+        return api_success(data={'status': 'released'}, message=msg)
+    else:
+        return api_error(message=msg, status_code=400)
+
+# --- Leak Detector APIs ---
+@app.route('/api/leak/scan', methods=['POST', 'GET'])
+def leak_scan():
+    try:
+        report = leak_detector_service.scan_for_leaks()
+        return api_success(data=report)
+    except Exception as e:
+        log_error("Leak scan failed", e)
+        return api_error(message=str(e), status_code=500)
 
 @app.route('/')
 def index():

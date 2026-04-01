@@ -1416,7 +1416,7 @@
                         <div class="section-header">
                             <h3>Sandbox Environment</h3>
                             <label class="switch">
-                                <input type="checkbox" id="toggleSandbox" onchange="log('Sandbox mode toggled')">
+                                <input type="checkbox" id="toggleSandbox" onchange="toggleSandboxMode()">
                                 <span class="slider"></span>
                             </label>
                         </div>
@@ -1439,9 +1439,9 @@
                     <div class="card table-section" style="grid-column: span 6;">
                         <div class="section-header">
                             <h3>Isolated Executables</h3>
-                            <button class="btn btn-primary" style="padding: 5px 10px; font-size: 0.7rem;" onclick="log('Refreshing sandbox container...')"><i class="fas fa-sync"></i> Refresh</button>
+                            <button class="btn btn-primary" style="padding: 5px 10px; font-size: 0.7rem;" onclick="updateSandbox()"><i class="fas fa-sync"></i> Refresh</button>
                         </div>
-                        <div class="table-container" style="height: 200px; display: flex; align-items: center; justify-content: center; opacity: 0.5;">
+                        <div class="table-container" style="height: 200px; display: flex; align-items: center; justify-content: center; opacity: 0.5;" id="sandboxListContainer">
                             <div style="text-align: center;">
                                 <i class="fas fa-check-circle" style="font-size: 2rem; color: var(--success); margin-bottom: 10px;"></i>
                                 <p>No processes currently running in Sandbox.</p>
@@ -1468,7 +1468,7 @@
                     <div class="card stat-card" style="grid-column: span 12; height: auto;">
                         <div class="section-header">
                             <h3>Leak Analysis</h3>
-                            <button class="btn btn-primary" style="padding: 5px 15px;" onclick="log('Starting deep leak scan...')">
+                            <button class="btn btn-primary" style="padding: 5px 15px;" id="btnLeakScan" onclick="runLeakScan()">
                                 <i class="fas fa-search"></i> START SCAN
                             </button>
                         </div>
@@ -1480,15 +1480,15 @@
                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 10px;">
                             <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; text-align: center;">
                                 <div style="font-size: 0.8rem; opacity: 0.7; margin-bottom: 5px;">Potential Leaks</div>
-                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--text-main);" id="leak-count">0</div>
+                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--text-main);" id="leak-count">-</div>
                             </div>
                             <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; text-align: center;">
                                 <div style="font-size: 0.8rem; opacity: 0.7; margin-bottom: 5px;">Analysis Confidence</div>
-                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--primary);">98.2%</div>
+                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--primary);" id="leak-confidence">-</div>
                             </div>
                             <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; text-align: center;">
                                 <div style="font-size: 0.8rem; opacity: 0.7; margin-bottom: 5px;">Critical Threats</div>
-                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--danger);">NONE</div>
+                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--danger);" id="leak-critical">-</div>
                             </div>
                         </div>
                     </div>
@@ -1502,17 +1502,17 @@
                                 <thead>
                                     <tr>
                                         <th>Application</th>
-                                        <th>Duration</th>
+                                        <th>Current Mem</th>
                                         <th>Growth Rate</th>
                                         <th>Risk Score</th>
                                         <th>Action</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody id="leak-table-body">
                                     <tr>
                                         <td colspan="5" style="text-align: center; padding: 40px; opacity: 0.5;">
-                                            <i class="fas fa-shield-heart" style="font-size: 2rem; margin-bottom: 15px; display: block;"></i>
-                                            All monitored processes are releasing memory normally.
+                                            <i class="fas fa-play" style="font-size: 2rem; margin-bottom: 15px; display: block;"></i>
+                                            Press START SCAN to run analysis.
                                         </td>
                                     </tr>
                                 </tbody>
@@ -1610,10 +1610,12 @@
         }
 
         // Fetch Stats
-        async function updateStats() {
+        async function refreshAllDashboardData() {
             try {
+                // Do the normal stats
                 const response = await fetch('/api/stats');
-                const data = await response.json();
+                const resData = await response.json();
+                const data = resData.data;
 
                 // Update RAM
                 const ramPercent = data.system.percent;
@@ -1640,8 +1642,6 @@
 
                 const optSwitch = document.getElementById('toggleOptimizer');
                 if (data.purger_running !== optSwitch.checked) {
-                    // Only update visually if changed externally to avoid glitching while clicking
-                    // But here we just set it to match backend state
                     optSwitch.checked = data.purger_running;
                 }
 
@@ -1657,23 +1657,6 @@
                     vaultStatus.style.color = 'var(--text-muted)';
                 }
 
-                // Update Connection Mode
-                const connSwitch = document.getElementById('toggleConnection');
-                const onlineFeatures = document.getElementById('onlineFeatures');
-                const isOnline = data.connection_mode === 'online';
-
-                connSwitch.checked = isOnline;
-                onlineFeatures.style.display = isOnline ? 'block' : 'none';
-
-                if (isOnline && document.getElementById('lanIp').textContent === 'Detecting...') {
-                    // Fake IP detection for demo
-                    setTimeout(() => {
-                        document.getElementById('lanIp').textContent = '192.168.1.105';
-                    }, 1500);
-                } else if (!isOnline) {
-                    document.getElementById('lanIp').textContent = 'Detecting...';
-                }
-
                 // Update Processes
                 const processList = document.getElementById('processList');
                 processList.innerHTML = data.processes.map(proc => `
@@ -1683,9 +1666,8 @@
                         <td class="proc-ram">${proc.memory_mb.toFixed(0)} MB</td>
                         <td>${proc.cpu_percent || 0}%</td>
                         <td>
-                            <button class="action-btn" onclick="killProcess(${proc.pid}, '${proc.name}')" title="Kill Process">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
+                            <button class="action-btn" onclick="killProcess(${proc.pid}, '${proc.name}')" title="Kill Process"><i class="fas fa-trash-alt"></i></button>
+                            <button class="action-btn" onclick="sandboxProcess(${proc.pid}, '${proc.name}')" title="Isolate Process"><i class="fas fa-box"></i></button>
                         </td>
                     </tr>
                 `).join('');
@@ -1708,6 +1690,140 @@
                 console.error('Stats error:', error);
             }
         }
+        
+        async function updateStats() {
+             await refreshAllDashboardData();
+        }
+
+        /* ── Module 5: Secure Sandbox ── */
+        async function updateSandbox() {
+            try {
+                const res = await fetch('/api/sandbox/status');
+                const resData = await res.json();
+                const data = resData.data || {};
+                
+                document.getElementById('toggleSandbox').checked = !!data.enabled;
+                document.getElementById('sandbox-quarantined').textContent = data.quarantined_count || 0;
+                document.getElementById('sandbox-active').textContent = data.active_containers || 0;
+                
+                const container = document.getElementById('sandboxListContainer');
+                
+                if (!data.processes || data.processes.length === 0) {
+                    if (data.enabled) {
+                        container.innerHTML = `<div style="text-align:center;"><i class="fas fa-check-circle" style="font-size:2rem;color:var(--success);margin-bottom:10px;"></i><p>Sandbox standing by.</p></div>`;
+                    } else {
+                        container.innerHTML = `<div style="text-align:center;"><i class="fas fa-shield-alt" style="font-size:2rem;opacity:0.3;margin-bottom:10px;"></i><p>Sandbox is disabled.</p></div>`;
+                    }
+                } else {
+                    let html = `<table style="width:100%"><thead><tr><th>Process</th><th>PID</th><th>Memory</th><th>Action</th></tr></thead><tbody>`;
+                    data.processes.forEach(p => {
+                        html += `<tr>
+                            <td class="proc-name">${p.name}</td>
+                            <td style="opacity:0.7">${p.pid}</td>
+                            <td>${p.memory_mb} MB</td>
+                            <td>
+                                <button class="btn btn-primary" onclick="releaseProcess(${p.pid}, '${p.name}')" style="padding:2px 8px;font-size:0.7rem;"><i class="fas fa-door-open"></i> Release</button>
+                            </td>
+                        </tr>`;
+                    });
+                    html += `</tbody></table>`;
+                    container.innerHTML = html;
+                    container.style.opacity = '1';
+                }
+            } catch(e) {
+                console.debug('Sandbox fetch error', e);
+            }
+        }
+        
+        async function toggleSandboxMode() {
+            try {
+                const res = await fetch('/api/sandbox/toggle', { method: 'POST' });
+                const resData = await res.json();
+                log(resData.data.enabled ? 'Sandbox environment ENABLED' : 'Sandbox environment DISABLED');
+                updateSandbox();
+            } catch(e) {
+                log('Failed to toggle sandbox');
+            }
+        }
+        
+        async function sandboxProcess(pid, name) {
+            try {
+                log(`Isolating ${name}...`);
+                const res = await fetch(`/api/sandbox/quarantine/${pid}`, { method: 'POST' });
+                const resData = await res.json();
+                if (resData.success) {
+                    log(`Quarantined ${name} (${pid})`);
+                    updateSandbox();
+                    updateStats();
+                } else {
+                    alert('Sandbox Failed: ' + (resData.error || 'Unknown error. Make sure Sandbox is Enabled.'));
+                }
+            } catch (e) {
+                console.debug(e);
+            }
+        }
+
+        async function releaseProcess(pid, name) {
+            try {
+                const res = await fetch(`/api/sandbox/release/${pid}`, { method: 'POST' });
+                const resData = await res.json();
+                if (resData.success) {
+                    log(`Released ${name} (${pid})`);
+                    updateSandbox();
+                } else {
+                    alert('Release Failed: ' + (resData.error || 'Unknown error'));
+                }
+            } catch(e) {
+                console.debug(e);
+            }
+        }
+
+        /* ── Module 6: Leak Detector ── */
+        async function runLeakScan() {
+            const btn = document.getElementById('btnLeakScan');
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> SCANNING...`;
+            btn.disabled = true;
+            log('Starting deep leak scan on history...');
+            
+            try {
+                const res = await fetch('/api/leak/scan', { method: 'POST' });
+                const resData = await res.json();
+                const d = resData.data || {};
+                
+                document.getElementById('leak-count').textContent = d.leaks_found !== undefined ? d.leaks_found : '-';
+                document.getElementById('leak-confidence').textContent = d.confidence ? d.confidence.toFixed(1) + '%' : '-';
+                document.getElementById('leak-critical').textContent = d.critical || 'NONE';
+                
+                const tbody = document.getElementById('leak-table-body');
+                
+                if (!d.suspects || d.suspects.length === 0) {
+                    tbody.innerHTML = `<tr>
+                        <td colspan="5" style="text-align: center; padding: 40px; opacity: 0.5;">
+                            <i class="fas fa-shield-heart" style="font-size: 2rem; margin-bottom: 15px; display: block;"></i>
+                            All monitored processes are releasing memory normally.
+                        </td>
+                    </tr>`;
+                } else {
+                    tbody.innerHTML = d.suspects.map(s => {
+                        return `<tr>
+                            <td class="proc-name">${s.name} <span style="opacity:0.5;font-size:0.8em">(${s.pid})</span></td>
+                            <td>${s.current_mem_mb} MB</td>
+                            <td style="color:var(--danger)">+${s.growth_mb} MB</td>
+                            <td>${s.severity}</td>
+                            <td>
+                                <button class="action-btn" onclick="killProcess(${s.pid}, '${s.name}')" title="Kill Process"><i class="fas fa-trash-alt"></i></button>
+                            </td>
+                        </tr>`;
+                    }).join('');
+                }
+                log('Deep leak scan completed.');
+            } catch(e) {
+                log('Leak scan failed: connection error');
+            } finally {
+                btn.innerHTML = `<i class="fas fa-search"></i> START SCAN`;
+                btn.disabled = false;
+            }
+        }
 
         // Actions
 
@@ -1715,7 +1831,8 @@
         async function updateMemorySummary() {
             try {
                 const res = await fetch('/api/memory_summary');
-                const data = await res.json();
+                const resData = await res.json();
+                const data = resData.data;
 
                 if (data && data.chrome) {
                     const chromeMem = data.chrome.total_memory_mb || 0;
@@ -1754,8 +1871,9 @@
         async function fetchRestorationData() {
             try {
                 const res = await fetch('/api/restoration/stats');
-                const d = await res.json();
-                if (!d || d.error) return;
+                const resData = await res.json();
+                if (!resData || resData.error) return;
+                const d = resData.data;
 
                 // Update stats row
                 document.getElementById('rst-total').textContent = d.total_purged || 0;
@@ -1833,8 +1951,9 @@
         async function fetchSystemSummary() {
             try {
                 const res = await fetch('/api/system_summary');
-                const d = await res.json();
-                if (!d || d.error) return;
+                const resData = await res.json();
+                if (!resData || resData.error) return;
+                const d = resData.data;
 
                 // System RAM
                 const sys = d.system || d.system_memory || {};
@@ -1897,12 +2016,13 @@
 
             try {
                 const res = await fetch(`/api/control/process/kill/${pid}`, { method: 'POST' });
-                const data = await res.json();
+                const resData = await res.json();
+                const data = resData.data || {};
                 if (data.status === 'killed') {
                     log(`Terminated process: ${name} (${pid})`);
                     updateStats();
                 } else {
-                    alert('Failed to kill process: ' + (data.error || 'Unknown error'));
+                    alert('Failed to kill process: ' + (resData.error || 'Unknown error'));
                 }
             } catch (e) {
                 alert('Connection error');
@@ -2026,7 +2146,8 @@
 
             try {
                 const res = await fetch('/api/vault/stats');
-                const data = await res.json();
+                const resData = await res.json();
+                const data = resData.data || {};
 
                 if (data.status === 'unmounted') {
                     content.innerHTML = `
@@ -2040,8 +2161,8 @@
                     return;
                 }
 
-                if (data.status === 'error') {
-                    content.innerHTML = `<div class="text-danger">Error: ${data.message}</div>`;
+                if (resData.success === false || data.status === 'error') {
+                    content.innerHTML = `<div class="text-danger">Error: ${resData.error || data.message || 'Unknown error'}</div>`;
                     return;
                 }
 
@@ -2101,6 +2222,11 @@
                 // Module 4 — Predictive Tab Restoration (10s poll)
                 fetchRestorationData();
                 setInterval(fetchRestorationData, 10000);
+
+                updateSandbox();
+                setInterval(updateSandbox, 3000); // Poll sandbox status
+                // Background leak analysis ping to capture memory samples history
+                setInterval(() => fetch('/api/leak/scan', { method: 'POST' }), 60000); 
 
                 // Uptime counter
                 setInterval(() => {
