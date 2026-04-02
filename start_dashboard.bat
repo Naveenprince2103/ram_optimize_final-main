@@ -26,5 +26,6 @@ if '%errorlevel%' NEQ '0' (
     start chrome --remote-debugging-port=9222 --restore-last-session
 )
 
+start "" python widget.py
 python start_dashboard.py
 pause

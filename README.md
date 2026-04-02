@@ -26,6 +26,20 @@ RAM Sentinel is a powerful cross-platform tool that helps you optimize RAM usage
 - Generate detailed reports
 - Top 15 processes by memory usage
 
+### ⚔️ WAR ROOM (Game Mode)
+- Silences non-essential background Windows services
+- De-prioritizes background CPU cycles
+- Forces max performance specifically to your game or active task
+
+### 🧠 Neural Auto-Sandbox
+- Zero-Trust automatic process monitoring
+- Detects unknown massive memory surges in real-time
+- Isolates and suspends rogue processes instantly
+
+### 🎛️ System "Dynamic Island" Widget
+- Premium, borderless floating desktop widget
+- Real-time CPU/RAM tracking independent of browser
+- 1-Click "Purge" utilizing Windows EmptyWorkingSet APIs
 ### 🌐 Web Dashboard
 - Beautiful real-time monitoring interface
 - Auto-refreshes every 3 seconds

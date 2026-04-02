@@ -708,8 +708,46 @@ def leak_scan():
         log_error("Leak scan failed", e)
         return api_error(message=str(e), status_code=500)
 
+from ram_sentinel.core.system_optimizer import compact_memory, get_vram_info
+from ram_sentinel.core.war_room import war_room
+
+# --- System Optimizer APIs ---
+@app.route('/api/optimizer/compact', methods=['POST'])
+def run_compaction():
+    try:
+        report = compact_memory()
+        msg = f"Compaction successful. Freed {report['freed_mb']} MB"
+        return api_success(data=report, message=msg)
+    except Exception as e:
+        log_error("Compaction failed", e)
+        return api_error(message=str(e), status_code=500)
+
+@app.route('/api/optimizer/vram', methods=['GET'])
+def run_vram_scan():
+    try:
+        report = get_vram_info()
+        return api_success(data=report)
+    except Exception as e:
+        log_error("VRAM scan failed", e)
+        return api_error(message=str(e), status_code=500)
+
+# --- War Room APIs ---
+@app.route('/api/control/war_room/toggle', methods=['POST'])
+def toggle_war_room():
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        target_game = body.get('target_game')
+        
+        is_active, logs = war_room.toggle_game_mode(target_game)
+        
+        return api_success(data={'active': is_active, 'logs': logs}, message="War Room mode toggled.")
+    except Exception as e:
+        log_error("War Room toggle failed", e)
+        return api_error(message=str(e), status_code=500)
+
 @app.route('/')
 def index():
+
     """Serve the dashboard."""
     return render_template('dashboard.html')
 

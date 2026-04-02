@@ -6,3 +6,4 @@ pystray
 pillow
 flask
 flask-cors
+wmi
