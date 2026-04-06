@@ -51,23 +51,29 @@ class TabPurger:
         self._monitoring_start = time.time()
 
     def start_session(self, headless=False):
-        """Starts a Playwright session, either connecting to existing or launching new."""
-        self.playwright = sync_playwright().start()
-        assert self.playwright is not None
+        """Starts a Playwright session with better error handling."""
         try:
-            # Try connecting to standard remote debugging port
-            self.browser = self.playwright.chromium.connect_over_cdp("http://localhost:9222")
-            if len(self.browser.contexts) > 0:
-                self.context = self.browser.contexts[0]
-                logger.info(f"✅ CONNECTED to existing browser via CDP (Found {len(self.context.pages)} pages)")
-            else:
-                logger.warning("CDP connection successful but NO global contexts found.")
+            from playwright.sync_api import sync_playwright
+            self.playwright = sync_playwright().start()
+            
+            # 1. Try to connect to existing browser (Port 9222)
+            try:
+                self.browser = self.playwright.chromium.connect_over_cdp("http://localhost:9222")
+                if len(self.browser.contexts) > 0:
+                    self.context = self.browser.contexts[0]
+                    logger.info(f"✅ CONNECTED to existing browser via CDP (Found {len(self.context.pages)} pages)")
+                    return True
+                else:
+                    logger.warning("CDP connection successful but NO global contexts found.")
+                    return False
+            except Exception as e:
+                logger.warning(f"❌ No browser found on Port 9222: {e}")
+                # We don't launch a new one here, we want to monitor the USER's actual browser
+                return False
+                
         except Exception as e:
-            logger.warning(f"❌ Could not connect on Port 9222: {e}")
-            logger.info("Starting isolated Sentinel browser (Dashboard only mode).")
-            self.browser = self.playwright.chromium.launch(headless=headless)
-            assert self.browser is not None
-            self.context = self.browser.new_context()
+            logger.error(f"Playwright initialization failed: {e}")
+            return False
 
     def stop_session(self):
         try:
