@@ -62,7 +62,13 @@ stats_cache = {
 
 def update_stats():
     """Update statistics cache."""
-    global stats_cache
+    global stats_cache, purger_running, tab_purger
+    
+    # Sync purger status from process
+    if optimizer_process and optimizer_process.is_alive():
+        purger_running = True
+    else:
+        purger_running = False
     
     # System stats
     stats_cache['system'] = process_monitor.get_system_stats()
@@ -76,23 +82,36 @@ def update_stats():
     except Exception:
         stats_cache['chrome_memory'] = []
     
-    # Tab stats (if purger is running)
-    if tab_purger and tab_purger.browser:
-        try:
-            tabs = []
-            for context in tab_purger.browser.contexts:
-                for page in context.pages:
-                    try:
-                        title = page.title if isinstance(page.title, str) else page.title()
-                        url = page.url if isinstance(page.url, str) else page.url()
-                        tabs.append({'title': title, 'url': url})
-                    except:
-                        pass
-            stats_cache['tabs'] = tabs  # type: ignore
-        except:
-            stats_cache['tabs'] = []  # type: ignore
+    # Tab stats (try to connect to CDP if not available)
+    if purger_running:
+        if not tab_purger or not getattr(tab_purger, 'browser', None):
+            try:
+                from ram_sentinel.optimizer.tab_purger import TabPurger
+                tab_purger = TabPurger()
+                # Connect to CDP only
+                from playwright.sync_api import sync_playwright
+                tab_purger.playwright = sync_playwright().start()
+                tab_purger.browser = tab_purger.playwright.chromium.connect_over_cdp("http://localhost:9222")
+            except:
+                pass
+                
+        if tab_purger and tab_purger.browser:
+            try:
+                tabs = []
+                for context in tab_purger.browser.contexts:
+                    for page in context.pages:
+                        try:
+                            # Both property and method access for title/url
+                            title = page.title() if callable(page.title) else page.title
+                            url = page.url() if callable(page.url) else page.url
+                            tabs.append({'title': title, 'url': url})
+                        except:
+                            pass
+                stats_cache['tabs'] = tabs
+            except:
+                stats_cache['tabs'] = []
     else:
-        stats_cache['tabs'] = []  # type: ignore
+        stats_cache['tabs'] = []
     
     stats_cache['last_update'] = time.time()  # type: ignore
 
@@ -109,7 +128,7 @@ def get_stats():
             'purger_running': purger_running,
             'vault_mounted': vault_mounted,
             'connection_mode': connection_mode,
-            'tab_count': len(stats_cache['tabs'])  # type: ignore
+            'tab_count': len(stats_cache['tabs'])
         })
     except PermissionError as e:
         log_error("Permission denied accessing system stats", e)

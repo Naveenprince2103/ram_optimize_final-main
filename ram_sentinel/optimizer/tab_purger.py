@@ -57,10 +57,14 @@ class TabPurger:
         try:
             # Try connecting to standard remote debugging port
             self.browser = self.playwright.chromium.connect_over_cdp("http://localhost:9222")
-            self.context = self.browser.contexts[0]
-            logger.info("Connected to existing browser session via CDP.")
-        except Exception:
-            logger.warning("Could not connect to existing browser (Port 9222). Launching new instance.")
+            if len(self.browser.contexts) > 0:
+                self.context = self.browser.contexts[0]
+                logger.info(f"✅ CONNECTED to existing browser via CDP (Found {len(self.context.pages)} pages)")
+            else:
+                logger.warning("CDP connection successful but NO global contexts found.")
+        except Exception as e:
+            logger.warning(f"❌ Could not connect on Port 9222: {e}")
+            logger.info("Starting isolated Sentinel browser (Dashboard only mode).")
             self.browser = self.playwright.chromium.launch(headless=headless)
             assert self.browser is not None
             self.context = self.browser.new_context()
