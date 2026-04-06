@@ -51,19 +51,25 @@ class TabPurger:
         self._monitoring_start = time.time()
 
     def start_session(self, headless=False):
-        """Starts a Playwright session, either connecting to existing or launching new."""
-        self.playwright = sync_playwright().start()
-        assert self.playwright is not None
+        """Starts a Playwright session with better error handling."""
         try:
-            # Try connecting to standard remote debugging port
-            self.browser = self.playwright.chromium.connect_over_cdp("http://localhost:9222")
-            self.context = self.browser.contexts[0]
-            logger.info("Connected to existing browser session via CDP.")
-        except Exception:
-            logger.warning("Could not connect to existing browser (Port 9222). Launching new instance.")
-            self.browser = self.playwright.chromium.launch(headless=headless)
-            assert self.browser is not None
-            self.context = self.browser.new_context()
+            from playwright.sync_api import sync_playwright
+            self.playwright = sync_playwright().start()
+            
+            # 1. Try to connect to existing browser (Port 9222)
+            try:
+                self.browser = self.playwright.chromium.connect_over_cdp("http://localhost:9222")
+                self.context = self.browser.contexts[0]
+                logger.info("Connected to existing browser via CDP (Port 9222).")
+                return True
+            except Exception:
+                logger.warning("No browser found on Port 9222. Optimizer will wait for a connection.")
+                # We don't launch a new one here, we want to monitor the USER's browser
+                return False
+                
+        except Exception as e:
+            logger.error(f"Playwright initialization failed: {e}")
+            return False
 
     def stop_session(self):
         try:

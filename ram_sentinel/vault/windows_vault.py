@@ -1,100 +1,76 @@
 import subprocess
-import shutil
 import os
 from .base_vault import BaseVault
 from ..core.logger import logger
 from ..core.os_utils import is_admin
 
 class WindowsVault(BaseVault):
+    def __init__(self):
+        self.vhd_path = "C:\\ram_sentinel_vault.vhd"
+        self.script_path = "C:\\ram_sentinel_diskpart.txt"
+
     def mount(self, size: str, mount_point: str = "R:") -> bool:
         if not is_admin():
-            logger.error("Admin privileges required to mount ImDisk.")
+            logger.error("Admin privileges required to mount Ghost Drive.")
             return False
             
-        # Parse size (e.g. 500M -> 500M)
-        # ImDisk expects -s size (e.g. 500M) -m mountpoint
-        
-        # Clean up any existing mount first
+        # Clean up existing
         self.unmount(mount_point)
 
-        # 1. Create the device (raw)
-        cmd_create = ["imdisk", "-a", "-s", size, "-m", mount_point]
-        logger.info(f"Creating RAM Disk ({size}) at {mount_point}...")
+        # Convert size to MB (Diskpart likes MB)
+        size_mb = 1024 # Default 1GB
+        if 'G' in size.upper():
+            size_mb = int(size.upper().replace('G', '')) * 1024
+        elif 'M' in size.upper():
+            size_mb = int(size.upper().replace('M', ''))
+
+        # Create Diskpart script
+        script_content = f"""
+create vdisk file="{self.vhd_path}" maximum={size_mb} type=expandable
+attach vdisk
+create partition primary
+format fs=ntfs quick label="GhostDrive"
+assign letter={mount_point.replace(':', '')}
+"""
+        with open(self.script_path, 'w') as f:
+            f.write(script_content)
+
+        logger.info(f"Creating Virtual Ghost Drive ({size_mb}MB) at {mount_point}...")
         
         try:
-            result = subprocess.run(cmd_create, capture_output=True, text=True)
+            result = subprocess.run(["diskpart", "/s", self.script_path], capture_output=True, text=True)
             if result.returncode != 0:
-                logger.error(f"Failed to create RAM disk: {result.stderr or result.stdout}")
+                logger.error(f"Diskpart failed: {result.stderr or result.stdout}")
                 return False
-                
-            # 2. Format it (NTFS) - This is more reliable done separately
-            logger.info("Formatting drive...")
-            # We use echo Y | format ... to bypass confirmation
-            cmd_format = f"echo Y | format {mount_point} /FS:NTFS /Q /V:GhostDrive"
-
-            # Use shell=True for piping echo
-            fmt_result = subprocess.run(cmd_format, shell=True, capture_output=True, text=True)
-
-            if fmt_result.returncode != 0:
-                logger.error(f"Failed to format: {fmt_result.stderr or fmt_result.stdout}")
-                # Cleanup if format fails
-                self.unmount(mount_point)
-                return False
-
-            # Verify mount point exists and is accessible
-            drive_path = mount_point if mount_point.endswith('\\') else (mount_point + "\\")
-            if not os.path.exists(drive_path):
-                logger.error(f"Drive formatted but mount point not found: {drive_path}")
-                # Attempt to unmount to leave a clean state
-                try:
-                    self.unmount(mount_point)
-                except:
-                    pass
-                return False
-
-            # Try a simple disk usage call to ensure mount is usable
-            try:
-                total, used, free = shutil.disk_usage(drive_path)
-            except Exception as e:
-                logger.error(f"Mounted drive appears inaccessible: {e}")
-                try:
-                    self.unmount(mount_point)
-                except:
-                    pass
-                return False
-
-            logger.info("Vault mounted and ready.")
-            return True
             
-        except FileNotFoundError:
-            logger.error("ImDisk executable not found in PATH. Please install ImDisk Toolkit.")
+            logger.info("Ghost Drive mounted and ready via Diskpart.")
+            return True
+        except Exception as e:
+            logger.error(f"Mount error: {e}")
             return False
+        finally:
+            if os.path.exists(self.script_path):
+                os.remove(self.script_path)
 
     def unmount(self, mount_point: str = "R:") -> bool:
-        if not is_admin():
-            logger.error("Admin privileges required to unmount.")
-            return False
-
-        # Forced unmount: imdisk -D -m R:
-        cmd = ["imdisk", "-D", "-m", mount_point]
-        logger.info(f"Unmounting Vault at {mount_point}...")
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            logger.info("Vault unmounted.")
+        script_content = f"""
+select vdisk file="{self.vhd_path}"
+detach vdisk
+"""
+        with open(self.script_path, 'w') as f:
+            f.write(script_content)
+            
+        try:
+            subprocess.run(["diskpart", "/s", self.script_path], capture_output=True, text=True)
+            if os.path.exists(self.vhd_path):
+                os.remove(self.vhd_path)
             return True
-        else:
-            logger.error(f"Failed to unmount: {result.stderr}")
+        except:
             return False
+        finally:
+            if os.path.exists(self.script_path):
+                os.remove(self.script_path)
 
     def panic(self) -> bool:
-        """
-        Panic Wipe:
-        1. Overwrite files? (Too slow for panic)
-        2. Force unmount immediately.
-        """
-        logger.warning("PANIC INITIATED! Destroying Vault...")
-        # We can try to format it first to 'wipe' FS table?
-        # Faster to just detach. RAM is volatile, content is gone on power loss.
-        # But to be safe, we detach.
+        logger.warning("PANIC! Detaching and deleting Vault...")
         return self.unmount()
