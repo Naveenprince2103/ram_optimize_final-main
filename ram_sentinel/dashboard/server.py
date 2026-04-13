@@ -2,7 +2,7 @@
 Flask Dashboard Server for RAM Sentinel
 Provides REST API and web interface for monitoring.
 """
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_from_directory
 from flask_cors import CORS
 import multiprocessing
 import time
@@ -82,36 +82,57 @@ def update_stats():
     except Exception:
         stats_cache['chrome_memory'] = []
     
-    # Tab stats (try to connect to CDP if not available)
-    if purger_running:
-        if not tab_purger or not getattr(tab_purger, 'browser', None):
-            try:
-                from ram_sentinel.optimizer.tab_purger import TabPurger
-                tab_purger = TabPurger()
-                # Connect to CDP only
-                from playwright.sync_api import sync_playwright
-                tab_purger.playwright = sync_playwright().start()
-                tab_purger.browser = tab_purger.playwright.chromium.connect_over_cdp("http://localhost:9222")
-            except:
-                pass
-                
-        if tab_purger and tab_purger.browser:
-            try:
-                tabs = []
-                for context in tab_purger.browser.contexts:
-                    for page in context.pages:
-                        try:
-                            # Both property and method access for title/url
-                            title = page.title() if callable(page.title) else page.title
-                            url = page.url() if callable(page.url) else page.url
-                            tabs.append({'title': title, 'url': url})
-                        except:
-                            pass
-                stats_cache['tabs'] = tabs
-            except:
-                stats_cache['tabs'] = []
-    else:
-        stats_cache['tabs'] = []
+    # Tab stats (Real-time detection via CDP port 9222 with psutil fallback)
+    tabs_detected = False
+    
+    if not hasattr(app, 'pw_instance') or app.pw_instance is None:
+        try:
+            from playwright.sync_api import sync_playwright
+            app.pw_instance = sync_playwright().start()
+        except Exception:
+            app.pw_instance = None
+
+    if app.pw_instance:
+        try:
+            if not hasattr(app, 'pw_browser') or app.pw_browser is None:
+                app.pw_browser = app.pw_instance.chromium.connect_over_cdp("http://localhost:9222")
+            
+            tabs = []
+            for context in app.pw_browser.contexts:
+                for page in context.pages:
+                    try:
+                        title = page.title() if callable(getattr(page, 'title', None)) else getattr(page, 'title', "Untitled")
+                        url = getattr(page, 'url', "")
+                        if callable(url): url = url()
+                        tabs.append({'title': title, 'url': url})
+                    except Exception:
+                        continue
+            stats_cache['tabs'] = tabs
+            tabs_detected = True
+        except Exception:
+            # CDP connection failed
+            app.pw_browser = None
+
+    if not tabs_detected:
+        # Fallback: estimate tabs using psutil and generate process-level monitor list
+        tabs = []
+        try:
+            count = 1
+            for proc in psutil.process_iter(['name', 'memory_info', 'pid']):
+                if proc.info['name'] and 'chrome' in proc.info['name'].lower():
+                    mem_mb = proc.info['memory_info'].rss / (1024 * 1024)
+                    tabs.append({
+                        'title': f"Browser Process #{count} (PID: {proc.info['pid']})",
+                        'url': 'N/A (Estimated Monitoring)',
+                        'memory_mb': round(mem_mb, 2)
+                    })
+                    count += 1
+            
+            # Sort by memory to show hogs at top
+            tabs.sort(key=lambda x: x['memory_mb'], reverse=True)
+            stats_cache['tabs'] = tabs
+        except Exception:
+            stats_cache['tabs'] = []
     
     stats_cache['last_update'] = time.time()  # type: ignore
 
@@ -128,7 +149,8 @@ def get_stats():
             'purger_running': purger_running,
             'vault_mounted': vault_mounted,
             'connection_mode': connection_mode,
-            'tab_count': len(stats_cache['tabs'])
+            'tab_count': len(stats_cache['tabs']),
+            'timestamp': time.time()
         })
     except PermissionError as e:
         log_error("Permission denied accessing system stats", e)
@@ -764,9 +786,68 @@ def toggle_war_room():
         log_error("War Room toggle failed", e)
         return api_error(message=str(e), status_code=500)
 
+# --- Tab Management APIs ---
+@app.route('/api/control/tabs/close', methods=['POST'])
+def close_tab():
+    """Close a specific browser tab by URL."""
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        target_url = body.get('url')
+        if not target_url:
+            return api_error("URL is required to identify the tab.")
+        
+        if hasattr(app, 'pw_browser') and app.pw_browser:
+             for context in app.pw_browser.contexts:
+                 for page in context.pages:
+                     try:
+                         # Use property or method access
+                         url = getattr(page, 'url', "")
+                         if callable(url): url = url()
+                         
+                         if url == target_url:
+                             page.close()
+                             return api_success(message=f"Closed tab: {target_url}")
+                     except Exception:
+                         continue
+        return api_error("Tab not found or browser connection lost. Ensure Chrome --remote-debugging-port=9222 is active.")
+    except Exception as e:
+        log_error("Failed to close tab", e)
+        return api_error(str(e))
+
+@app.route('/api/control/tabs/focus', methods=['POST'])
+def focus_tab():
+    """Bring a specific browser tab to front."""
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        target_url = body.get('url')
+        if not target_url:
+            return api_error("URL is required to identify the tab.")
+        
+        if hasattr(app, 'pw_browser') and app.pw_browser:
+             for context in app.pw_browser.contexts:
+                 for page in context.pages:
+                     try:
+                         url = getattr(page, 'url', "")
+                         if callable(url): url = url()
+                         
+                         if url == target_url:
+                             page.bring_to_front()
+                             return api_success(message=f"Focused tab: {target_url}")
+                     except Exception:
+                         continue
+        return api_error("Tab not found or browser connection lost.")
+    except Exception as e:
+        log_error("Failed to focus tab", e)
+        return api_error(str(e))
+
+@app.route('/favicon.ico')
+def favicon():
+    """Serve the favicon."""
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                               'favicon.png', mimetype='image/png')
+
 @app.route('/')
 def index():
-
     """Serve the dashboard."""
     return render_template('dashboard.html')
 

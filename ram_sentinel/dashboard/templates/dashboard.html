@@ -8,7 +8,8 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;500&display=swap"
         rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="icon" type="image/png" href="/static/favicon.png">
     <script src="/static/js/chart.min.js"></script>
     <style>
         :root {
@@ -1081,6 +1082,10 @@
                 <div class="sentinel-logo">
                     <i class="fas fa-shield-alt"></i> SENTINEL
                 </div>
+                <div style="font-size: 0.7rem; color: var(--primary); display: flex; align-items: center; justify-content: center; margin-top: 4px; letter-spacing: 2px;">
+                    <span style="display:inline-block; width:6px; height:6px; background:var(--primary); border-radius:50%; margin-right:6px; box-shadow: 0 0 10px var(--primary);"></span>
+                    LIVE MONITORING <span id="lastUpdate" style="margin-left:8px; opacity:0.6;"></span>
+                </div>
             </div>
 
             <div class="nav-right header-actions">
@@ -1262,6 +1267,23 @@
                 </div>
             </div>
 
+            <!-- Monitored Tabs List -->
+            <div class="card table-section" style="grid-column: span 12; height: auto; max-height: 400px; margin-top: 20px;">
+                <div class="section-header">
+                    <h3><i class="fas fa-globe text-primary"></i> Live Browser Tabs</h3>
+                    <div class="analyzer-badge" id="tab-status-badge" style="background:rgba(0,242,255,0.1); color:var(--primary);">CDP ACTIVE</div>
+                </div>
+                <div class="table-container">
+                    <ul id="liveTabList" style="list-style: none; padding: 0;">
+                        <!-- Tab list items will be injected here -->
+                        <li style="padding: 20px; text-align: center; opacity: 0.5;">
+                            <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+                            Detecting browser tabs via Port 9222...
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
             </div>
 
         </div> <!-- Close view-dashboard -->
@@ -1391,11 +1413,12 @@
                 <div class="dashboard-grid" style="margin-bottom: 20px;">
                     <div class="card table-section" style="grid-column: span 12;">
                         <div class="section-header">
-                            <h3>Monitored Tabs</h3>
+                            <h3>Monitored Tab Intelligence</h3>
+                            <div style="font-size:0.75rem; opacity:0.6;"><i class="fas fa-sync fa-spin"></i> SYNCED</div>
                         </div>
                         <div class="table-container">
-                            <ul id="tabList" style="list-style: none;">
-                                <!-- Tab Rows -->
+                            <ul id="monitoredTabList" style="list-style: none; padding: 0;">
+                                <!-- Tab Rows synced from primary monitor -->
                             </ul>
                         </div>
                     </div>
@@ -1683,6 +1706,11 @@
 
                 // Update Toggles & Status
                 document.getElementById('tabCount').textContent = data.tab_count;
+                if (data.timestamp) {
+                    const updateTime = new Date(data.timestamp * 1000).toLocaleTimeString();
+                    const lu = document.getElementById('lastUpdate');
+                    if (lu) lu.textContent = `[${updateTime}]`;
+                }
 
                 const optSwitch = document.getElementById('toggleOptimizer');
                 if (data.purger_running !== optSwitch.checked) {
@@ -1701,7 +1729,7 @@
                     vaultStatus.style.color = 'var(--text-muted)';
                 }
 
-                // Update Processes
+                // Update Processes (Resource Hogs)
                 const processList = document.getElementById('processList');
                 processList.innerHTML = data.processes.map(proc => `
                     <tr>
@@ -1716,18 +1744,51 @@
                     </tr>
                 `).join('');
 
-                // Update Tabs
-                const tabList = document.getElementById('tabList');
-                if (data.tabs.length > 0) {
-                    tabList.innerHTML = data.tabs.map(tab => `
-                        <li style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
-                            <i class="fas fa-globe text-primary" style="margin-right: 8px;"></i>
-                            ${tab.title || 'Untitled'}
-                            <div style="font-size: 0.7rem; opacity: 0.5; margin-left: 24px;">${tab.url}</div>
+                // Update BOTH Tab Lists (Live and Monitored)
+                const liveList = document.getElementById('liveTabList');
+                const monitoredList = document.getElementById('monitoredTabList');
+                const tabBadge = document.getElementById('tab-status-badge');
+                
+                if (data.tabs && data.tabs.length > 0) {
+                    const isEstimated = data.tabs[0].url === 'N/A (Estimated Monitoring)';
+                    if (tabBadge) {
+                        tabBadge.textContent = isEstimated ? 'ESTIMATED' : 'CDP ACTIVE';
+                        tabBadge.style.color = isEstimated ? 'orange' : 'var(--primary)';
+                        tabBadge.style.background = isEstimated ? 'rgba(255,165,0,0.1)' : 'rgba(0,242,255,0.1)';
+                    }
+
+                    const htmlContent = data.tabs.map((tab, idx) => {
+                        const safeUrl = (tab.url || '').replace(/'/g, "\\'");
+                        const isN_A = tab.url.includes('Estimated');
+                        const memInfo = tab.memory_mb ? `<span style="color:var(--primary); font-size:0.8rem; margin-left:10px;">[${tab.memory_mb} MB]</span>` : '';
+                        
+                        return `
+                        <li style="padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+                            <div style="overflow: hidden; flex: 1; margin-right: 15px;">
+                                <div style="white-space: nowrap; text-overflow: ellipsis; overflow: hidden; font-weight: 500;">
+                                    <i class="fas fa-globe text-primary" style="margin-right: 8px;"></i>
+                                    ${(tab.title || 'Untitled').replace(/</g, '&lt;')}
+                                    ${memInfo}
+                                </div>
+                                <div style="font-size: 0.75rem; opacity: 0.5; margin-left: 24px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">${tab.url}</div>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                ${!isN_A ? `<button class="action-btn" onclick="focusTab('${safeUrl}')" title="Focus Tab"><i class="fas fa-external-link-alt"></i></button>` : ''}
+                                ${!isN_A ? `<button class="action-btn" style="color:var(--danger)" onclick="closeTab('${safeUrl}')" title="Close Tab"><i class="fas fa-times-circle"></i></button>` : ''}
+                            </div>
                         </li>
-                    `).join('');
+                    `}).join('');
+
+                    if (liveList) liveList.innerHTML = htmlContent;
+                    if (monitoredList) monitoredList.innerHTML = htmlContent;
                 } else {
-                    tabList.innerHTML = '<li style="padding: 10px; opacity: 0.5;">No active tabs monitored</li>';
+                    if (tabBadge) {
+                        tabBadge.textContent = 'NO BROWSER';
+                        tabBadge.style.color = 'var(--text-muted)';
+                    }
+                    const emptyMsg = '<li style="padding: 20px; opacity: 0.5; text-align: center;">No active browser tabs detected</li>';
+                    if (liveList) liveList.innerHTML = emptyMsg;
+                    if (monitoredList) monitoredList.innerHTML = emptyMsg;
                 }
 
             } catch (error) {
@@ -2071,6 +2132,38 @@
             } catch (e) {
                 alert('Connection error');
             }
+        }
+
+        async function focusTab(url) {
+            try {
+                const res = await fetch('/api/control/tabs/focus', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                const resData = await res.json();
+                if (resData.success) {
+                    log(`Focused tab: ${url.substring(0, 30)}...`);
+                }
+            } catch (e) { console.debug(e); }
+        }
+
+        async function closeTab(url) {
+            if (!confirm('Close this browser tab?')) return;
+            try {
+                const res = await fetch('/api/control/tabs/close', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                const resData = await res.json();
+                if (resData.success) {
+                    log(`Closed tab: ${url.substring(0, 30)}...`);
+                    updateStats();
+                } else {
+                    alert('Failed to close: ' + (resData.error || 'Unknown error'));
+                }
+            } catch (e) { console.debug(e); }
         }
 
         async function toggleOptimizer() {
